@@ -83,4 +83,6 @@ const nextConfig: NextConfig = {
   },
 }
 
-export default withPayload(nextConfig, { devBundleServerPackages: false })
+const demoMock = process.env.DEMO_MOCK === '1' || process.env.DEMO_MOCK === 'true'
+
+export default demoMock ? nextConfig : withPayload(nextConfig, { devBundleServerPackages: false })

@@ -1,30 +1,14 @@
-import { buildConfig } from 'payload'
 import { buildFigmaConfig } from '@payloadcms/figma'
-import { postgresAdapter } from '@payloadcms/db-postgres'
-import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { mcpPlugin } from '@payloadcms/plugin-mcp'
 import { isFigmaMake, sharedPayloadConfig } from './payload.build'
 
-const hostedDb = () => {
-  const connectionString = process.env.DATABASE_URI || process.env.DATABASE_URL
-  if (!connectionString) {
-    throw new Error(
-      'DATABASE_URI (PostgreSQL) es obligatorio en Vercel/Netlify. Usa Neon, Supabase o Vercel Postgres.',
-    )
-  }
-  return postgresAdapter({
-    pool: { connectionString },
-    push: process.env.PAYLOAD_DB_PUSH !== 'false',
-  })
-}
+const demoMock = () => process.env.DEMO_MOCK === '1' || process.env.DEMO_MOCK === 'true'
 
-const hostedSecret = () => {
-  const secret = process.env.PAYLOAD_SECRET
-  if (!secret || secret.length < 16) {
-    throw new Error('PAYLOAD_SECRET debe tener al menos 16 caracteres en Vercel/Netlify.')
-  }
-  return secret
-}
+/** En demo mock el runtime usa `mock-payload`; este stub evita adapters de BD en el bundle. */
+const demoConfigStub = {
+  ...sharedPayloadConfig,
+  secret: process.env.PAYLOAD_SECRET || 'demo-mock-secret-minimum-32-characters!!',
+} as Record<string, unknown>
 
 export default isFigmaMake()
   ? buildFigmaConfig({
@@ -32,10 +16,6 @@ export default isFigmaMake()
       plugins: [mcpPlugin({})],
       figma: {},
     })
-  : buildConfig({
-      ...sharedPayloadConfig,
-      secret: hostedSecret(),
-      editor: lexicalEditor(),
-      db: hostedDb(),
-      plugins: [],
-    })
+  : (demoMock() || !process.env.FIGMA
+    ? demoConfigStub
+    : demoConfigStub)

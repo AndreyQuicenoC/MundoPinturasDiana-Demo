@@ -2,6 +2,7 @@ import { cache } from 'react'
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { GRANT_MODE, LOCKED_FOR_ADMIN, MODULES, PERMISSIONS, type AppRole, type Mode, type ModuleKey } from '@/lib/access'
+import { isDemoMock } from '@/lib/demo/env'
 
 export type Effective = Record<ModuleKey, { mode: Mode; viaGrant: boolean }>
 
@@ -9,6 +10,11 @@ type U = { id: string | number; collection?: string }
 
 /** Modo efectivo por módulo: matriz por defecto → ajuste del rol → ajuste del usuario (el del usuario prevalece). */
 export const effectiveFor = cache(async (role: AppRole, userId: string | number | null): Promise<Effective> => {
+  if (isDemoMock()) {
+    const out = {} as Effective
+    for (const m of MODULES) out[m] = { mode: PERMISSIONS[m][role], viaGrant: false }
+    return out
+  }
   const payload = await getPayload({ config })
   const [rp, up] = await Promise.all([
     payload.find({ collection: 'role-permissions', where: { role: { equals: role } }, limit: 200, depth: 0, overrideAccess: true }),

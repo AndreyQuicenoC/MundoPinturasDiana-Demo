@@ -1,7 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "buildCommand": "npm run build:hosted",
-  "installCommand": "npm install",
-  "regions": ["iad1"]
+  "buildCommand": "npm run build:demo",
+  "installCommand": "npm install --legacy-peer-deps",
+  "env": {
+    "DEMO_MOCK": "true"
+  }
 }

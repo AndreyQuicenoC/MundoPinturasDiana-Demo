@@ -1,6 +1,5 @@
 {
   "dependencies": {
-    "@payloadcms/db-postgres": "^4.0.0-beta.3",
     "@payloadcms/figma": "1.0.0-beta.1",
     "@payloadcms/next": "4.0.0-beta.3",
     "@payloadcms/plugin-cloud-storage": "4.0.0-beta.3",
@@ -34,8 +33,7 @@
     "typescript": "6.0.3"
   },
   "engines": {
-    "node": ">=20.11.0",
-    "pnpm": "^9 || ^10 || ^11"
+    "node": ">=20.11.0"
   },
   "name": "mundo-pinturas-diana-demo",
   "pnpm": {
@@ -49,7 +47,8 @@
   "scripts": {
     "dev": "NODE_OPTIONS=--no-deprecation next dev --port ${PORT:-3000} --hostname 0.0.0.0",
     "build": "NODE_OPTIONS=--no-deprecation payload build",
-    "build:hosted": "NODE_OPTIONS=--no-deprecation payload build && node scripts/postbuild-hosted.mjs",
+    "build:demo": "next build",
+    "build:hosted": "next build",
     "seed:platform": "NODE_OPTIONS=--no-deprecation npx tsx scripts/seed-platform.mjs",
     "start": "NODE_OPTIONS=--no-deprecation next start",
     "format": "oxfmt",

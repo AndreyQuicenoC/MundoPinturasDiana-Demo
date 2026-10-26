@@ -1,6 +1,6 @@
-import { getPayload } from "payload"
-import config from "@payload-config"
 import type { Config } from "@/payload-types"
+import { isDemoMock } from "./demo/env"
+import { createMockPayload } from "./demo/mock-payload"
 
 type CollectionSlug = keyof Config["collections"]
 
@@ -9,6 +9,9 @@ type CollectionSlug = keyof Config["collections"]
  * Use this in server components and route handlers.
  */
 export async function getPayloadClient() {
+  if (isDemoMock()) return createMockPayload() as Awaited<ReturnType<typeof import('payload').getPayload>>
+  const { getPayload } = await import('payload')
+  const config = (await import('@payload-config')).default
   const payloadConfig = await config
   return getPayload({ config: payloadConfig })
 }

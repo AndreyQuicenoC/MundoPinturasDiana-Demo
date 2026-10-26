@@ -1,6 +1,6 @@
-# Arquitectura funcional del frontend — Mundo Pinturas Diana Demo
+# Arquitectura funcional del frontend — Mundo Pinturas Diana (Demo mock)
 
-Documento de referencia para alinear el **backend** (APIs, ETL, integraciones) con lo que la demo visual ya implementa. Describe rutas, flujos, contratos de datos y colecciones Payload consumidas.
+Documento maestro para alinear un **backend futuro** con la demo visual actual. En despliegue Netlify/Vercel **no hay base de datos externa**: todo el contenido operativo vive en **`src/lib/demo/fixtures.ts`** y se sirve mediante **`mock-payload`** en memoria (`DEMO_MOCK=true`).
 
 ---
 
@@ -8,273 +8,411 @@ Documento de referencia para alinear el **backend** (APIs, ETL, integraciones) c
 
 | Capa | Tecnología | Responsabilidad |
 |------|------------|-----------------|
-| Presentación pública | Next.js RSC + Client Components | Catálogo, marketing, carrito WhatsApp |
-| Panel operativo | Next.js App Router `(app)/panel` | ERP ligero por rol |
-| Persistencia | Payload CMS (Figma Cloud) | Colecciones, auth app, uploads |
-| Admin contenido | `/admin` Payload | CMS Figma SSO (no login público) |
+| Sitio público | Next.js 16 App Router (RSC + client) | Catálogo, marketing, carrito → WhatsApp |
+| Panel interno | Rutas `/panel/[role]/[module]` | ERP demo por rol (admin, gerente, empleado) |
+| Datos demo | `mock-payload` + store en `globalThis` | Lecturas/escrituras simuladas sin PostgreSQL |
+| Auth app | Cookie `app-session` + JWT (jose) | Login demo con 3 usuarios fijos |
+| Figma Make (opcional) | `FIGMA=1` + `@payloadcms/figma` | Entorno original con Payload cloud |
 
-**Zona horaria de negocio:** America/Bogotá (UTC−5) en fechas de caja, analítica y cierres.
+**Zona horaria:** America/Bogotá (UTC−5) en caja, analítica y fechas mostradas.
 
----
-
-## 2. Actores y autenticación
-
-### 2.1 Tipos de usuario
-
-| Actor | Colección | Acceso |
-|-------|-----------|--------|
-| Editor CMS | `admins` | `/admin` (Figma SSO) |
-| Personal app | `users` | `/login` → `/panel/{rol}` |
-
-Roles app: `admin` | `gerente` | `empleado`. Estado `activo` requerido.
-
-### 2.2 Flujo de login app
-
-1. `GET /login` — formulario (`login-form.tsx`).
-2. Server Action valida credenciales contra colección `users` (Payload auth).
-3. Cookie de sesión app (`app-auth.ts`).
-4. Redirección a `/panel/{role}` o `next` seguro.
-
-### 2.3 Autorización por módulo
-
-- Matriz base: `src/lib/access.ts` → `PERMISSIONS[module][role]` con modos `total | ver | propio | none`.
-- Overrides: colecciones `role-permissions`, `user-permissions` (`permissions.ts` → `effectiveForUser`).
-- Escritura panel: `canWrite = mode === 'total'` (empleado suele ser `ver` o `propio` en inventario/productos).
-
-**Backend debe replicar** la misma matriz en API y rechazar mutaciones no permitidas.
+**Persistencia en demo mock:** las mutaciones (ventas, entradas de inventario, etc.) actualizan el store **en memoria** del proceso serverless; pueden perderse entre invocaciones frías. Es aceptable para demostración.
 
 ---
 
-## 3. Mapa de rutas
+## 2. Modo demo mock (Netlify / Vercel)
 
-### 3.1 Sitio público `(site)`
+| Variable | Valor | Efecto |
+|----------|--------|--------|
+| `DEMO_MOCK` | `true` | Activa `mock-payload`, permisos solo matriz, build `next build` sin Payload DB |
+| `PAYLOAD_SECRET` | ≥ 32 chars | Firma JWT de sesión demo |
+| `NEXT_PUBLIC_SITE_URL` | URL pública | Enlaces absolutos e imagen loader |
 
-| Ruta | Fuente | Datos Payload |
-|------|--------|---------------|
-| `/` | `page.tsx` | productos, promociones, sedes, settings |
-| `/catalogo` | listado | `products`, categorías |
-| `/catalogo/[slug]` | detalle | `findBySlug('products')` |
-| `/carrito` | carrito + WA | settings, branches |
-| `/sedes` | sedes | `branches` |
-| `/sobre-nosotros` | estático + copy | — |
-| `/mapa-del-sitio` | índice | — |
+Archivos clave:
 
-Tracking: `POST /api/track` → `site-events` (`visit`, `whatsapp_cart`, `whatsapp_promo`).
+- `src/lib/demo/env.ts` — `isDemoMock()`
+- `src/lib/demo/fixtures.ts` — dataset inicial (usuarios, ventas ~12 meses, inventario, caja, sitio)
+- `src/lib/demo/mock-payload.ts` — API compatible: `find`, `create`, `login`, `auth`, `findGlobal`
+- `src/lib/payload.ts` — desvía a mock cuando `isDemoMock()`
+- `next.config.ts` — sin `withPayload` en demo (bundle más liviano)
 
-### 3.2 Panel `(app)/panel`
-
-| Ruta | Módulo | Componente |
-|------|--------|--------------|
-| `/panel` | redirect | por sesión |
-| `/panel/[role]` | resumen | dashboard |
-| `/panel/[role]/[module]` | dinámico | `_modules/{module}.tsx` |
-| `/panel/[role]/reporte` | PDF analítica | `route.ts` GET |
-| `/panel/[role]/imprimir/[id]` | factura/ticket | impresión venta |
-
-Módulos (`ModuleKey`): `resumen`, `usuarios`, `permisos`, `sedes`, `categorias`, `productos`, `inventario`, `clientes`, `proveedores`, `ventas`, `pos`, `domicilios`, `facturacion`, `caja`, `conceptos`, `cierre`, `eventos`, `promociones`, `auditoria`, `analitica`.
+Build: `npm run build:demo` (Netlify: `netlify.toml`).
 
 ---
 
-## 4. Modelo de datos (colecciones)
+## 3. Actores, roles y matriz de módulos
 
-Relación **frontend ↔ slug Payload**:
+### 3.1 Usuarios demo
 
-| Dominio | Slug | Uso en UI |
-|---------|------|-----------|
-| Usuarios app | `users` | login, panel usuarios |
-| Sedes | `branches` | sitio, ventas, inventario, caja |
-| Productos | `products` | catálogo, POS, inventario |
-| Categorías producto | `product-categories` | filtros, analítica |
-| Tipos producto | `product-types` | normal vs artístico (`affectsDailySales`) |
-| Clientes | `clients` | ventas, Habeas Data |
-| Proveedores | `suppliers` | entradas inventario |
-| Stock | `inventory` | saldos por sede (solo lectura UI; mutación vía movimientos) |
-| Movimientos | `inventory-movements` | kardex; tipos en `MOVEMENT_SIGN` |
-| Ventas | `sales` | ventas, POS, analítica |
-| Domicilios | `domicilios` | logística |
-| Mensajeros | `couriers` | domicilios |
-| Caja categorías | `cash-categories` | gastos/transferencias/ahorros |
-| Conceptos caja | `cash-concepts` | plantillas movimiento |
-| Movimientos caja | `cash-movements` | caja, analítica |
-| Entregas efectivo | `cash-deliveries` | analítica |
-| Cierres | `cash-closings` | cierre diario |
-| Cuentas banco | `bank-accounts` | transferencias venta |
-| Facturas electrónicas | `electronic-invoices` | facturación |
-| Promociones | `promotions` | sitio + analítica WA |
-| Eventos negocio | `events` | calendario; `importance: clave` marca meses atípicos |
-| Eventos sitio | `site-events` | analítica tráfico |
-| Auditoría | `audit-logs` | módulo auditoría |
-| Notificaciones | `notifications` | campana panel |
-| Permisos | `role-permissions`, `user-permissions` | permisos |
-| Recuperación | `recovery-tokens` | flujo olvidé contraseña |
-| Media | `media` | imágenes |
-| Global | `site-settings` | WhatsApp, redes, dirección |
+| Rol | Email | Contraseña | Sede por defecto |
+|-----|--------|------------|------------------|
+| admin | admin@mundopinturasdiana.test | Admin#2026demo | Cali Centro |
+| gerente | gerente@mundopinturasdiana.test | Gerente#2026demo | Cali Centro |
+| empleado | empleado@mundopinturasdiana.test | Empleado#2026demo | Cali Centro |
 
-### 4.1 Producto (campos críticos)
+### 3.2 Modos de permiso
 
-- `sku` (único), `barcode`, `slug`, `salePrice`, `costPrice`, `minimumStock`, `origin` (`comprado|fabricado`), `saleType` → artístico si `affectsDailySales === false`.
-- `visible`, `status`, `colors[]`, `sizes[]`, relación `image`.
+| Modo | Significado en UI |
+|------|-------------------|
+| `total` | Ver y escribir |
+| `ver` | Solo lectura |
+| `propio` | Solo registros propios (p. ej. ventas del vendedor) |
+| `none` | Módulo oculto / redirect |
 
-### 4.2 Venta (campos críticos)
+### 3.3 Matriz por defecto (`src/lib/access.ts`)
 
-- `number` autoincremental, `branch`, `seller`, `status`, `lines[]`, `payments[]`, `returns[]`.
-- Calculados en hook: `subtotal`, `discountTotal`, `total`, `artisticTotal`, `reportableTotal`.
-- Analítica usa **solo** `reportableTotal` y líneas con `affectsSales !== false`.
+| Módulo | admin | gerente | empleado |
+|--------|-------|---------|----------|
+| resumen | total | total | propio |
+| usuarios | total | none | none |
+| permisos | total | none | none |
+| sedes | total | none | none |
+| categorias | total | none | none |
+| productos | total | total | ver |
+| inventario | total | total | ver |
+| clientes | total | total | total |
+| proveedores | total | none | none |
+| ventas | total | total | propio |
+| pos | total | total | total |
+| domicilios | total | total | total |
+| facturacion | total | total | none |
+| caja | total | total | none |
+| conceptos | total | total | none |
+| cierre | total | total | none |
+| eventos | total | total | none |
+| promociones | total | total | none |
+| auditoria | total | none | none |
+| analitica | total | total | none |
+| cuenta | (todos) | (todos) | (todos) |
 
-### 4.3 Movimiento inventario
-
-Tipos: `entrada_compra`, `venta`, `ajuste_positivo`, `ajuste_negativo`, `merma`, `devolucion`, `anulacion`, `traslado_entrada`, `traslado_salida`.
-
-Hook `beforeChange` actualiza `inventory` y setea `balanceAfter`, `actor`.
+En producción real, `role-permissions` y `user-permissions` sobreescriben esta matriz; en **demo mock** solo aplica la matriz.
 
 ---
 
-## 5. Flujos operativos
+## 4. Mapa de rutas
 
-### 5.1 Venta (POS / ventas)
+### 4.1 Sitio público `(frontend)/(site)`
 
-1. Selección productos, cliente opcional, descuentos (tope empleado 10%).
-2. Pagos deben igualar `total`.
-3. Create `sales` → hook descuenta inventario (`venta`), registra líneas.
-4. Devolución parcial → `returns` en venta; analítica resta unidades/valor.
+| Ruta | Tipo | Descripción | Fuente de datos |
+|------|------|-------------|-----------------|
+| `/` | SSG/ISR | Inicio, carruseles, promos | `getProducts`, `getPromotions`, `getBranches` |
+| `/catalogo` | Estático + client | Listado y filtros | `getProducts` |
+| `/catalogo/[slug]` | SSG | Ficha producto | `getProductBySlug` |
+| `/carrito` | Estático | Carrito + WhatsApp | `getBranches`, estado cliente |
+| `/sedes` | Cache 1h | Sedes y mapas | `getBranches` |
+| `/sobre-nosotros` | Estático | Historia / equipo | Copy + imágenes |
+| `/mapa-del-sitio` | Estático | Índice de páginas | Estático |
+| `/login` | Dinámico | Acceso panel | `app-auth` |
+| `/robots.txt`, `/sitemap.xml` | Meta | SEO | Generados |
 
-**Backend:** endpoint de venta debe ser transaccional (stock, numeración, pagos).
+Tracking: `POST /api/track` → incrementa `site-events` (visit, whatsapp_cart, whatsapp_promo).
 
-### 5.2 Inventario
+### 4.2 Panel `(frontend)/(app)/panel`
 
-| Flujo | UI | Server Action |
-|-------|-----|---------------|
-| Entrada manual | `inventario?tab=entrada` | `registerEntry` |
-| Código de barras | acumula lecturas → commit | `registerBulkEntries` |
-| Carga rápida texto | parse `SKU - QTY - cost` | `registerBulkEntries` |
-| Ajuste/merma | tab ajuste | `registerAdjustment` |
-| Traslado | tab traslado | `transferStock` (compensación si falla) |
+| Ruta | Descripción |
+|------|-------------|
+| `/panel` | Redirección según sesión |
+| `/panel/[role]` | **Resumen** (KPIs del día, alertas stock, notificaciones) |
+| `/panel/[role]/[module]` | Módulo CRUD o especializado |
+| `/panel/[role]/cuenta` | Mi cuenta (query implícita vía `module=cuenta` en page) |
+| `/panel/[role]/reporte` | PDF analítica (GET, `procesar=1`) |
+| `/panel/[role]/imprimir/[id]` | Impresión venta / factura |
 
-Resolución código: match `sku`, `barcode` o `id` (case insensitive).
-
-Proveedor **obligatorio** si `product.origin !== 'fabricado'`.
-
-### 5.3 Caja
-
-- Movimientos por categoría; transferencias se bloquean (`locked`).
-- Empleado: solo movimientos propios abiertos (sin cierre).
-- Cierre: módulo `cierre` consolida día.
-
-### 5.4 Analítica
-
-**Estado demo:**
-
-- Sin `?procesar=1`: UI muestra `buildEmptyReport()` (ceros).
-- Con `?procesar=1`: `buildReport()` agrega en memoria desde Payload (`overrideAccess` tras chequeo permiso `analitica`).
-
-**Contrato backend propuesto:**
-
-| Paso | Front | Backend futuro |
-|------|-------|----------------|
-| 1 | Usuario elige sede + rango | Igual |
-| 2 | Clic **Procesar analítica** | `POST /analytics/jobs` dispara ETL |
-| 3 | Poll o webhook | Materializa agregados (tablas OLAP o JSON cache) |
-| 4 | Front lee snapshot | `GET /analytics/report?...` |
-| 5 | PDF | `GET /analytics/report.pdf?...` |
-
-Query param actual: `procesar=1` (ver `ANALYTICS_ETL_PARAM` en `analytics-shared.ts`).
-
-**Métricas calculadas hoy (debe reproducir ETL):**
-
-- Ventas netas normales, ticket, gastos, entregas, transferencias, ahorros, margen, ratio gastos.
-- Buckets mensuales si rango es mes completo enero–diciembre o mes único.
-- Rankings productos/categorías, devoluciones, artísticos separados.
-- Inventario: entradas/salidas por bucket, bajo mínimo, rotación.
-- Sitio: visitas, WA carrito/promo por promoción.
-
-PDF: `GET /panel/{role}/reporte?procesar=1&desde&hasta&sede` → `renderReportPdf`.
-
-### 5.5 Facturación / impresión
-
-- `electronic-invoices` + ruta imprimir venta.
-- Plantilla `invoice-print.tsx`.
-
-### 5.6 Permisos
-
-- UI oculta módulos; **backend no debe confiar en UI**.
-- Server Actions usan `run()` con módulo y usuario Payload.
+Módulos registrados en `REGISTRY` (`panel/[role]/[module]/page.tsx`).
 
 ---
 
-## 6. Server Actions principales
+## 5. Páginas del panel por rol (navegación efectiva)
 
-| Archivo | Acciones |
-|---------|----------|
-| `actions-inventory.ts` | `registerEntry`, `registerBulkEntries`, `registerAdjustment`, `transferStock` |
-| `actions-sales.ts` | ventas, anulaciones, devoluciones |
-| `actions-cash.ts` | movimientos, entregas |
-| `actions-admin.ts` | usuarios, permisos |
-| `actions-recovery.ts` | tokens recuperación |
-| `login/actions.ts` | sesión app |
+Lo que ve cada rol es la intersección **matriz de permisos** + ítems en `PanelShell` (generados en layout según `effectiveForUser`).
 
-Patrón respuesta: `{ ok, message?, error? }` + `router.refresh()` en cliente.
+### 5.1 Administrador
 
----
+Acceso completo excepto restricciones de negocio (p. ej. empleado no ve caja). Puede: usuarios, permisos, sedes, categorías, productos, inventario (escritura), clientes, proveedores, ventas, POS, domicilios, facturación, caja, conceptos, cierre, eventos, promociones, auditoría, analítica.
 
-## 7. Caché y revalidación
+### 5.2 Gerente
 
-- Sitio: `unstable_cache` en `data.ts` con tags (`products`, `branches`, `promotions`, …).
-- Hooks Payload llaman `revalidateTag` en cambios de catálogo/sedes.
-- Panel: dinámico (`force-dynamic` implícito por cookies).
+Operación diaria sin administración de usuarios/sedes/categorías/proveedores/auditoría. Escritura en productos, inventario, clientes, ventas, POS, domicilios, facturación, caja, conceptos, cierre, eventos, promociones, analítica.
 
-**Backend:** invalidar CDN/cache al publicar contenido si se replica lectura.
+### 5.3 Empleado
+
+Enfoque mostrador: **POS**, **clientes**, **domicilios**, consulta **productos/inventario**, **ventas propias** en resumen y ventas. Sin caja, cierre, facturación electrónica, analítica, promociones, eventos (según matriz).
 
 ---
 
-## 8. Integraciones externas
+## 6. Tablas y grids por módulo (UI)
 
-| Integración | Front | Backend |
-|-------------|-------|---------|
-| WhatsApp | enlaces `wa.me` con teléfono sede/settings | opcional API Business |
-| Google Maps | embed sedes | — |
-| Correo recuperación | `mailer.ts` | SMTP env vars |
-| Código barras | HID teclado | opcional SDK cámara |
+### 6.1 Recursos genéricos (`resource-module.tsx` + `panel-config.ts`)
+
+Columnas definidas en `RESOURCES`:
+
+| Módulo | Columnas de tabla |
+|--------|-------------------|
+| **usuarios** | Nombre, Correo, Rol, Estado, Sede |
+| **sedes** | Orden, Nombre, Dirección, WhatsApp, Activa |
+| **productos** | Imagen, SKU, Producto, Categoría, Precio, Visible, Estado |
+| **clientes** | Nombre, Documento, Teléfono, Tipo, Habeas Data |
+| **proveedores** | Nombre, NIT, Contacto, Teléfono |
+| **domicilios** | Cliente, Dirección, Domiciliario, Pago domiciliario, Estado |
+| **eventos** | Imagen, Evento, Inicio, Fin, Estado, Importancia, Tipo, Público |
+| **categorias** | Nombre, Carrusel inicio, Activa |
+| **conceptos** | Concepto, Categoría, Valor sugerido, Activo |
+| **promociones** | Imagen, Título, Hashtags, Inicia, Termina, Estado, Clics WA |
+| **auditoria** | Cuándo, Usuario, Módulo, Acción, Detalle |
+
+Formularios: mismos campos que `fields` en `RESOURCES` (texto, relación, checkbox, tags, imagen+URL).
+
+### 6.2 Inventario (`inventory-module.tsx`)
+
+**Pestaña Existencias**
+
+| Columna | Contenido |
+|---------|-----------|
+| Producto | Nombre + SKU |
+| Origen | Comprado / Fabricado |
+| Por sede | Cantidad (alerta Bajo/Agotado) |
+| Total | Suma sedes visibles |
+| Mínimo | Umbral |
+
+**Pestaña Historial (Kardex)**
+
+| Columna | Contenido |
+|---------|-----------|
+| Fecha | Timestamp |
+| Producto, Sede, Tipo | Badge tipo movimiento |
+| Cant., Anterior, Nuevo | Delta color |
+| Costo, Proveedor, Referencia, Responsable | |
+
+**Pestaña Registrar entrada** — tres modos:
+
+1. **Manual** — producto, cantidad, costo, proveedor, documento, observaciones.
+2. **Código de barras** — sede, proveedor, escaneo SKU/barcode, tabla acumulada, commit bulk.
+3. **Carga rápida** — texto `SKU - CANTIDAD - costo` (coma o línea), preview, commit bulk.
+
+**Ajuste / merma** y **Traslado** — formularios dedicados.
+
+### 6.3 Ventas / POS / Caja / Cierre / Facturación
+
+| Módulo | UI principal |
+|--------|----------------|
+| **ventas** | Tabla ventas, filtros, detalle, anulación/devolución (`sales-module`) |
+| **pos** | Carrito POS, pagos múltiples, cliente, domicilio (`pos-module`) |
+| **caja** | Movimientos del día, categorías, conceptos (`cash-module`) |
+| **cierre** | Tabla: Día, Sede, Base, Entrega, Esperado, Contado, Diferencia, Estado |
+| **facturacion** | Facturas electrónicas pendientes/generadas (`facturacion-module`) |
+| **domicilios** | CRUD domicilios + estados ruta |
+
+### 6.4 Permisos (`permissions-module.tsx`)
+
+| Vista | Columnas |
+|-------|----------|
+| Por rol | Módulo × (admin, gerente, empleado) toggles |
+| Por usuario | Módulo, Acceso actual, Permiso |
+
+### 6.5 Analítica (`analitica.tsx` + `analytics/parts.tsx`)
+
+| Sección | Componentes |
+|---------|-------------|
+| Filtros | Sede, Desde, Hasta, Atajos, PDF (tras procesar) |
+| ETL | Banner **Procesar analítica** (`?procesar=1`) — sin procesar KPIs en 0 |
+| KPIs | 9 tarjetas (ventas, ticket, gastos, margen, etc.) |
+| Tabla mensual | Ventas, Nº, Ticket, Gastos, Entregas, Transf., Ahorros, Margen, Ratio |
+| Gráficos | Ventas/gastos, cambio %, dona categorías, barras productos, sitio, inventario, devoluciones, artísticos |
+
+### 6.6 Resumen (`panel/[role]/page.tsx`)
+
+| Bloque | Contenido |
+|--------|-----------|
+| Hero | Saludo, acceso POS |
+| KPIs | Ventas hoy, bajo stock, domicilios pendientes, FE pendientes (según rol) |
+| Alertas inventario | Lista producto · sede · qty |
+| Notificaciones | Lista reciente |
 
 ---
 
-## 9. Seguridad
+## 7. Modelo lógico de datos (entidades mock)
 
-- Secrets solo server-side (`process.env`, no `NEXT_PUBLIC_*` para claves).
-- `overrideAccess: false` en lecturas user-facing con `user` autenticado; analítica/reportes verifican permiso antes de `overrideAccess: true`.
-- Formularios públicos: allowlist de campos en server.
-- IDs: string | number según `payload-types.ts` — no asumir numéricos.
+Equivalente a colecciones Payload; todas en `fixtures.ts` / store mutable.
+
+| Entidad | Slug lógico | Uso principal |
+|---------|-------------|---------------|
+| Usuario app | `users` | Login panel |
+| Sede | `branches` | Ventas, stock, caja, sitio |
+| Categoría producto | `product-categories` | Catálogo, analítica |
+| Tipo producto | `product-types` | Normal vs artístico |
+| Producto | `products` | Catálogo, POS, inventario |
+| Cliente | `clients` | Ventas, Habeas Data |
+| Proveedor | `suppliers` | Entradas inventario |
+| Inventario | `inventory` | Saldos por sede |
+| Movimiento inventario | `inventory-movements` | Kardex |
+| Venta | `sales` | POS, analítica, resumen |
+| Movimiento caja | `cash-movements` | Caja, analítica |
+| Concepto caja | `cash-concepts` | Plantillas gasto |
+| Categoría caja | `cash-categories` | Clasificación gastos |
+| Entrega efectivo | `cash-deliveries` | Analítica |
+| Cierre caja | `cash-closings` | Cierre módulo |
+| Cuenta banco | `bank-accounts` | Transferencias venta |
+| Factura electrónica | `electronic-invoices` | Facturación |
+| Domicilio | `domicilios` | Logística |
+| Mensajero | `couriers` | Domicilios |
+| Promoción | `promotions` | Sitio + analítica WA |
+| Evento negocio | `events` | Calendario / sitio |
+| Evento sitio | `site-events` | Visitas, clics WA |
+| Auditoría | `audit-logs` | Módulo auditoría |
+| Notificación | `notifications` | Campana resumen |
+| Permiso rol | `role-permissions` | (vacío en demo) |
+| Permiso usuario | `user-permissions` | (vacío en demo) |
+| Global sitio | `site-settings` | WhatsApp, dirección, redes |
+| Media | `media` | Imágenes (demo usa `imageUrl` estático) |
+
+### 7.1 Producto (campos UI relevantes)
+
+`name`, `sku`, `barcode`, `slug`, `salePrice`, `costPrice`, `minimumStock`, `origin`, `saleType`, `productCategory`, `visible`, `featured`, `status`, `colors[]`, `sizes[]`, `imageUrl`.
+
+### 7.2 Venta
+
+`number`, `branch`, `seller`, `status`, `lines[]`, `payments[]`, `returns[]`, `subtotal`, `discountTotal`, `total`, `artisticTotal`, `reportableTotal`, `createdAt`.
+
+### 7.3 Movimiento inventario
+
+Tipos: `entrada_compra`, `venta`, `ajuste_positivo`, `ajuste_negativo`, `merma`, `devolucion`, `anulacion`, `traslado_entrada`, `traslado_salida`. Mock aplica signo al saldo en `inventory`.
 
 ---
 
-## 10. Despliegue
+## 8. Flujos funcionales (paso a paso)
 
-- Figma Make: `.figma/make/deploy`, `output: 'standalone'`.
-- Imágenes: loader `figma-image-loader.ts`, `media.url` de Payload.
-- Verificación: `figma make verify-deploy` + rutas públicas estáticas donde aplique.
+### 8.1 Login panel
 
-Ver [DEPLOYMENT.md](./DEPLOYMENT.md).
+1. `GET /login` → formulario.
+2. Server Action valida email/password (mock: comparación en claro en store).
+3. JWT en cookie `app-session`.
+4. Redirect `/panel/{role}`.
+
+### 8.2 POS / venta
+
+1. Módulo POS: búsqueda producto, cantidades, descuentos (empleado máx. 10%).
+2. Pagos deben igualar total; artísticos calculan `artisticTotal`.
+3. Server Action crea `sales` (+ movimientos inventario en backend real; mock puede ampliarse).
+4. Opción imprimir `/panel/.../imprimir/[id]`.
+
+### 8.3 Inventario — entrada manual
+
+1. Tab entrada → modo Manual.
+2. `registerEntry` → `inventory-movements` tipo `entrada_compra`.
+3. Mock actualiza saldo y kardex.
+
+### 8.4 Inventario — código de barras
+
+1. Modo Barcode: foco en input; lector USB envía SKU + Enter.
+2. Resolución por `sku`, `barcode` o id.
+3. Tabla acumula cantidades por producto.
+4. `registerBulkEntries` al confirmar.
+
+### 8.5 Inventario — carga rápida
+
+1. Pegar texto `SKU - CANTIDAD - costo` separado por comas o líneas.
+2. `parseBulkInventoryText` valida.
+3. `registerBulkEntries` con documento/observaciones comunes.
+
+### 8.6 Analítica
+
+1. Entrada: KPIs y gráficos en **cero**.
+2. Usuario pulsa **Procesar analítica** → `?procesar=1`.
+3. `buildReport` agrega ventas/caja/inventario/sitio del mock (~300+ ventas/año en fixtures).
+4. PDF: `GET .../reporte?procesar=1&desde&hasta&sede` → `renderReportPdf`.
+
+### 8.7 Carrito público
+
+1. Cliente agrega productos (estado React).
+2. Elige sede → mensaje WhatsApp con líneas.
+
+### 8.8 Permisos (admin)
+
+1. Matriz rol / overrides usuario.
+2. En demo mock los toggles pueden persistir en store si se implementan actions; por defecto matriz fija.
+
+### 8.9 Cierre de jornada
+
+1. Comparación base + movimientos vs conteo físico.
+2. Tabla histórica cierres.
+
+### 8.10 Facturación electrónica
+
+1. Lista documentos pendientes/generados.
+2. Flujo generación (demo).
 
 ---
 
-## 11. Alineación checklist backend
+## 9. Server Actions y APIs
 
-- [ ] Auth JWT/sesión compatible con roles y sede usuario.
-- [ ] CRUD maestros con mismos slugs y validaciones que hooks Payload.
-- [ ] Ventas transaccionales con `reportableTotal` y artísticos separados.
-- [ ] Kardex único vía movimientos (no update directo stock).
-- [ ] ETL analítica materializa mismos campos que `Report` en `analytics.ts`.
-- [ ] Endpoint PDF o generación server-side equivalente.
-- [ ] Bulk inventario: aceptar array `{ productId, quantity, unitCost? }` + metadata común.
-- [ ] Lookup producto por `sku` / `barcode`.
-- [ ] Eventos sitio para métricas marketing.
-- [ ] Permisos por módulo replicados en API Gateway.
+| Área | Archivo | Acciones |
+|------|---------|----------|
+| Login | `login/actions.ts` | login, logout |
+| Inventario | `actions-inventory.ts` | `registerEntry`, `registerBulkEntries`, `registerAdjustment`, `transferStock` |
+| Ventas | `actions-sales.ts` | crear, anular, devoluciones |
+| Caja | `actions-cash.ts` | movimientos, entregas |
+| Admin | `actions-admin.ts` | usuarios, permisos |
+| Recuperación | `actions-recovery.ts` | tokens (demo) |
+| Kit | `action-kit.ts` | `guard`, `run`, permisos |
+| Track | `api/track/route.ts` | eventos sitio |
+| PDF | `panel/.../reporte/route.ts` | informe analítica |
 
----
-
-## 12. Referencia de tipos
-
-Tipos TS generados: `src/payload-types.ts`. Tipo agregado analítica: `Report` en `src/lib/analytics.ts`.
+Todas las mutaciones pasan por `run(module, fn)` con chequeo de permiso.
 
 ---
 
-*Versión documento: 1.0.0-demo — 2026-10-26*
+## 10. Sitio público — componentes
+
+| Componente | Función |
+|------------|---------|
+| `site-header` / `site-footer` | Nav, contacto |
+| `product-carousel` | Destacados |
+| `promotions-section` | Promos activas |
+| `catalog-client` | Filtros catálogo |
+| `product-card` | Tarjeta producto |
+| `cart-provider` / `cart-client` | Carrito |
+| `visit-tracker` | POST track visita |
+| `branch-card` | Sede + mapa |
+
+---
+
+## 11. Contrato backend futuro (cuando deje de ser mock)
+
+| Capacidad demo | Endpoint / servicio sugerido |
+|----------------|------------------------------|
+| Auth JWT | `POST /auth/login`, cookie o Bearer |
+| CRUD maestros | REST/GraphQL alineado a slugs arriba |
+| Ventas transaccionales | `POST /sales` con inventario y pagos atómicos |
+| Kardex | Solo vía movimientos, nunca update directo stock |
+| Analítica | `POST /analytics/jobs` (ETL) + `GET /analytics/report` |
+| PDF | `GET /analytics/report.pdf` |
+| Bulk inventario | `POST /inventory/bulk` |
+| Lookup barcode | `GET /products?barcode=` |
+| Site events | `POST /telemetry` |
+
+Campos calculados a preservar: `reportableTotal`, `artisticTotal`, `balanceAfter`, márgenes analítica.
+
+---
+
+## 12. Despliegue demo
+
+- **Netlify:** `netlify.toml` → `npm run build:demo`, `DEMO_MOCK=true`, plugin Next.js.
+- **Sin** `DATABASE_URI`.
+- Usuarios demo en §3.1.
+
+---
+
+## 13. Checklist de paridad front ↔ backend
+
+- [ ] Misma matriz de módulos y modos
+- [ ] Mismos slugs de entidades y campos calculados en ventas
+- [ ] Kardex por movimientos
+- [ ] Analítica bajo demanda (ETL), no precargada en UI
+- [ ] Tres modos entrada inventario
+- [ ] Separación productos artísticos en reportes
+- [ ] Eventos sitio para métricas marketing
+- [ ] Zona horaria Bogotá en agregaciones
+
+---
+
+*Versión: 1.1.0-demo mock — 2026-10-26*

@@ -7,11 +7,11 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)
 ![License](https://img.shields.io/badge/License-Proprietary-red)
 
-Demo aprobada del ecosistema **Mundo Pinturas Diana**: sitio público de catálogo y panel interno (ventas, inventario, caja, analítica, domicilios y más) sobre **Next.js App Router**, **Payload CMS (Figma Make)** y **Tailwind CSS v4**.
+Demo aprobada del ecosistema **Mundo Pinturas Diana**: sitio público de catálogo y panel interno (ventas, inventario, caja, analítica, domicilios y más) sobre **Next.js App Router** y **Tailwind CSS v4**. En Netlify/Vercel la demo usa **datos mock en memoria** (`DEMO_MOCK=true`), sin PostgreSQL. Figma Make + Payload CMS sigue soportado si `FIGMA=1`.
 
 ## Demo en vivo
 
-Despliega en **[Vercel](https://vercel.com)** o **[Netlify](https://netlify.com)** con PostgreSQL — guía paso a paso en [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). Figma Make sigue soportado si `FIGMA=1`.
+Despliega en **[Vercel](https://vercel.com)** o **[Netlify](https://netlify.com)** — guía en [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). Variables mínimas: `DEMO_MOCK=true`, `PAYLOAD_SECRET`, `NEXT_PUBLIC_SITE_URL`.
 
 ## Accesos de demostración
 
@@ -29,7 +29,7 @@ Ruta de ingreso: `/login` → redirección al panel según rol.
 - **Panel por rol**: permisos granulares (matriz + overrides por usuario).
 - **Inventario**: entrada manual, lector de código de barras (USB/teclado) y carga rápida por texto (`SKU - CANTIDAD - costo`).
 - **Analítica**: métricas en cero hasta **Procesar analítica** (simula ETL); PDF descargable tras procesar.
-- **CMS**: Payload Admin en `/admin` (editores Figma SSO).
+- **CMS (Figma Make)**: Payload Admin en `/admin` cuando `FIGMA=1`; en demo mock use el panel `/panel`.
 
 ## Estructura del repositorio
 
@@ -59,18 +59,21 @@ LICENSE
 
 ## Desarrollo local
 
-Requisitos: **Node ≥ 24.22**, **pnpm** (recomendado en Figma Make) o **npm**.
+Requisitos: **Node ≥ 20.11** (22 recomendado en Netlify), **npm** o **pnpm**.
+
+Demo mock (sin base de datos):
 
 ```bash
-pnpm install   # o npm install
-pnpm dev       # puerto $PORT (3000 por defecto en Make)
+cp .env.example .env.local   # ajusta PAYLOAD_SECRET
+npm install
+set DEMO_MOCK=true           # PowerShell: $env:DEMO_MOCK="true"
+npm run build:demo
+npx next dev --port 3000
 ```
 
-Ampliar datos de ejemplo para analítica (solo entorno Make con Payload conectado):
+Figma Make: `pnpm dev` con `FIGMA=1` inyectado por la plataforma.
 
-```bash
-pnpm seed:demo-analytics
-```
+Ampliar datos de analítica (solo Make con Payload conectado): `npm run seed:demo-analytics`.
 
 ## Licencia
 

@@ -1,27 +1,22 @@
-# Despliegue — Vercel / Netlify (recomendado)
+# Despliegue — Vercel / Netlify (demo mock)
 
-Esta demo está preparada para **Vercel** o **Netlify** con **PostgreSQL** (Neon, Supabase, Vercel Postgres, etc.). Figma Make sigue siendo opcional si `FIGMA=1`.
+Esta demo está pensada para **Vercel** o **Netlify** **sin base de datos externa**. Los datos operativos viven en memoria (`DEMO_MOCK=true`). Figma Make sigue siendo opcional si defines `FIGMA=1` en ese entorno.
 
-## 1. Base de datos
-
-1. Crea un proyecto PostgreSQL (ej. [Neon](https://neon.tech) gratis).
-2. Copia la URL de conexión (`postgresql://…?sslmode=require`).
-
-## 2. Variables de entorno
+## 1. Variables de entorno
 
 En el panel de Vercel o Netlify → **Environment variables**:
 
 | Variable | Obligatorio | Descripción |
 |----------|-------------|-------------|
-| `DATABASE_URI` | Sí | URL PostgreSQL (alias aceptado: `DATABASE_URL`) |
-| `PAYLOAD_SECRET` | Sí | Secreto ≥ 16 caracteres (genera uno aleatorio) |
-| `PAYLOAD_DB_PUSH` | Sí al inicio | `true` para crear tablas; luego puedes poner `false` |
-| `SEED_DEMO` | Recomendado 1.er deploy | `true` crea usuarios demo y catálogo tras el build |
+| `DEMO_MOCK` | Sí | `true` — activa fixtures y mock-payload |
+| `PAYLOAD_SECRET` | Sí | Secreto ≥ 32 caracteres (JWT de sesión demo) |
 | `NEXT_PUBLIC_SITE_URL` | Recomendado | URL final (`https://tu-app.netlify.app`) |
 
-**No** definas `FIGMA=1` en Vercel/Netlify.
+**No** hace falta `DATABASE_URI`, `DATABASE_URL`, `PAYLOAD_DB_PUSH` ni `SEED_DEMO` para la demo mock.
 
-### Usuarios demo (tras seed)
+**No** definas `FIGMA=1` en Vercel/Netlify salvo que uses la plataforma Figma Make.
+
+### Usuarios demo (incluidos en fixtures)
 
 | Rol | Correo | Contraseña |
 |-----|--------|------------|
@@ -29,44 +24,56 @@ En el panel de Vercel o Netlify → **Environment variables**:
 | Gerente | gerente@mundopinturasdiana.test | Gerente#2026demo |
 | Empleado | empleado@mundopinturasdiana.test | Empleado#2026demo |
 
-## 3. Netlify
+## 2. Netlify
 
 1. **Add new site → Import from Git** → repo `MundoPinturasDiana-Demo`.
-2. Build command: **`npm run build:hosted`** (ya viene en `netlify.toml`).
-3. No configures “Publish directory” manualmente; usa el plugin **@netlify/plugin-nextjs**.
-4. Node **22** (`.nvmrc`).
-5. Deploy.
+2. Build command: **`npm run build:demo`** (definido en `netlify.toml`).
+3. No configures “Publish directory” manualmente; el plugin **@netlify/plugin-nextjs** lo gestiona.
+4. Node **22** (variable `NODE_VERSION` en `netlify.toml`).
+5. Añade `PAYLOAD_SECRET` y `NEXT_PUBLIC_SITE_URL` en el panel.
+6. Deploy.
 
-Si ves *“Site not found”*: suele ser URL incorrecta, sitio sin deploy exitoso o publish directory mal puesto. Borra publish manual y vuelve a desplegar desde Git.
+`netlify.toml` ya incluye:
 
-## 4. Vercel
+- `DEMO_MOCK=true`
+- `NPM_CONFIG_LEGACY_PEER_DEPS=true` (peer deps de Payload beta)
+- `.npmrc` con `legacy-peer-deps=true` y `engine-strict=false`
+
+Si el build falla en **Install dependencies**, revisa el log completo; con la versión mock (sin `@payloadcms/db-postgres`) `npm ci` debe completar. Si hay cola de deploys del equipo, espera a que terminen los builds anteriores.
+
+## 3. Vercel
 
 1. Importa el repositorio en [vercel.com](https://vercel.com).
 2. Framework: **Next.js** (detectado).
-3. Build command: **`npm run build:hosted`** (`vercel.json`).
-4. Añade las mismas variables de entorno.
+3. Build command: **`npm run build:demo`** (`vercel.json`).
+4. Variables: `DEMO_MOCK=true`, `PAYLOAD_SECRET`, `NEXT_PUBLIC_SITE_URL`.
 5. Deploy.
 
-## 5. Después del primer deploy
+## 4. Después del primer deploy
 
 1. Entra a `/login` y prueba los usuarios demo.
-2. Opcional: más datos de analítica (con BD ya sembrada):
+2. Panel → **Analítica** → **Procesar analítica** (los KPIs arrancan en cero hasta procesar).
+3. Descarga PDF desde analítica tras procesar.
 
-   ```bash
-   DATABASE_URI=... PAYLOAD_SECRET=... npm run seed:demo-analytics
-   ```
+### Limitaciones demo mock
 
-3. Pon `SEED_DEMO=false` en variables para builds siguientes (más rápidos).
+- Las escrituras (ventas, entradas de inventario, etc.) persisten solo en memoria del proceso; en serverless pueden resetearse entre invocaciones frías.
+- **`/admin` (Payload CMS)** no está disponible en modo `DEMO_MOCK` (build sin `withPayload`). Usa el panel en `/panel/...`.
 
-## 6. Figma Make (opcional)
+## 5. Figma Make (opcional)
 
-Si publicas desde Figma Make, la plataforma define `FIGMA=1` y usa `@payloadcms/figma` sin `DATABASE_URI`.
+Si publicas desde Figma Make, la plataforma define `FIGMA=1` y usa `@payloadcms/figma` con Payload cloud. No uses `DEMO_MOCK` allí.
+
+## 6. Backend real (futuro)
+
+Cuando conectes PostgreSQL u otro datastore, consulta [FRONTEND-ARCHITECTURE.md](FRONTEND-ARCHITECTURE.md) para mapear entidades mock → API. Hasta entonces, trata `src/lib/demo/fixtures.ts` como contrato de datos de referencia.
 
 ## Smoke test
 
 | # | Caso | Esperado |
 |---|------|----------|
 | 1 | `/` | Home con catálogo |
-| 2 | `/login` | Panel según rol |
-| 3 | Analítica → Procesar | Datos (si hay ventas seed) |
+| 2 | `/login` | Acceso y panel según rol |
+| 3 | `/panel/admin/analitica` | KPIs en 0 → Procesar → datos |
 | 4 | PDF analítica | Descarga tras procesar |
+| 5 | Inventario → entrada manual / barras / carga rápida | Kardex y saldos en sesión |
