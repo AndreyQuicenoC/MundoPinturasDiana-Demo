@@ -1,65 +1,41 @@
-import path from 'path'
+import { buildConfig } from 'payload'
 import { buildFigmaConfig } from '@payloadcms/figma'
+import { postgresAdapter } from '@payloadcms/db-postgres'
+import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { mcpPlugin } from '@payloadcms/plugin-mcp'
-import { en as adminLanguage } from '@payloadcms/translations/languages/en'
-import { fileURLToPath } from 'url'
-import { Admins } from './collections/Admins'
-import { Media } from './collections/Media'
-import { Folders } from './collections/Folders'
-import { Tags } from './collections/Tags'
-import { Users } from './collections/Users'
-import { Branches } from './collections/Branches'
-import { Products } from './collections/Products'
-import { PriceHistory } from './collections/PriceHistory'
-import { Clients } from './collections/Clients'
-import { Suppliers } from './collections/Suppliers'
-import { BankAccounts } from './collections/BankAccounts'
-import { Inventory, InventoryMovements } from './collections/Inventory'
-import { Sales } from './collections/Sales'
-import { CashConcepts, CashMovements, CashClosings } from './collections/Cash'
-import { Domicilios, Events, AuditLogs, Notifications, Couriers } from './collections/Operations'
-import { ProductCategories, ProductTypes } from './collections/Catalog'
-import { CashCategories, CashDeliveries, ElectronicInvoices } from './collections/Finance'
-import { Promotions, SiteEvents } from './collections/Marketing'
-import { RolePermissions, UserPermissions, RecoveryTokens } from './collections/Access'
-import { SiteSettings } from './globals/SiteSettings'
+import { isFigmaMake, sharedPayloadConfig } from './payload.build'
 
-const filename = fileURLToPath(import.meta.url)
-const dirname = path.dirname(filename)
+const hostedDb = () => {
+  const connectionString = process.env.DATABASE_URI || process.env.DATABASE_URL
+  if (!connectionString) {
+    throw new Error(
+      'DATABASE_URI (PostgreSQL) es obligatorio en Vercel/Netlify. Usa Neon, Supabase o Vercel Postgres.',
+    )
+  }
+  return postgresAdapter({
+    pool: { connectionString },
+    push: process.env.PAYLOAD_DB_PUSH !== 'false',
+  })
+}
 
-export default buildFigmaConfig({
-  admin: {
-    user: Admins.slug,
-    constrainWidth: true,
-    dashboard: {
-      widgets: [],
-      defaultLayout: [
-        { widgetSlug: 'activity', width: 'full' },
-        { widgetSlug: 'collections', width: 'full' },
-      ],
-    },
-    importMap: {
-      baseDir: path.resolve(dirname),
-    },
-  },
-  i18n: {
-    fallbackLanguage: 'en',
-    supportedLanguages: { 'en': adminLanguage },
-  },
-  collections: [
-    Admins, Users, Media, Folders, Tags, Branches, Products, PriceHistory, Clients, Suppliers, BankAccounts,
-    Inventory, InventoryMovements, Sales, Domicilios, Couriers, ProductCategories, ProductTypes, CashCategories, CashDeliveries, ElectronicInvoices, Promotions, SiteEvents, RolePermissions, UserPermissions, RecoveryTokens, CashConcepts, CashMovements, CashClosings,
-    Events, AuditLogs, Notifications,
-  ],
-  globals: [SiteSettings],
-  typescript: {
-    outputFile: path.resolve(dirname, 'payload-types.ts'),
-  },
-  localization: {
-    locales: [{ code: 'en', label: 'English' }],
-    fallback: true,
-    defaultLocale: 'en',
-  },
-  plugins: [mcpPlugin({})],
-  figma: {},
-})
+const hostedSecret = () => {
+  const secret = process.env.PAYLOAD_SECRET
+  if (!secret || secret.length < 16) {
+    throw new Error('PAYLOAD_SECRET debe tener al menos 16 caracteres en Vercel/Netlify.')
+  }
+  return secret
+}
+
+export default isFigmaMake()
+  ? buildFigmaConfig({
+      ...sharedPayloadConfig,
+      plugins: [mcpPlugin({})],
+      figma: {},
+    })
+  : buildConfig({
+      ...sharedPayloadConfig,
+      secret: hostedSecret(),
+      editor: lexicalEditor(),
+      db: hostedDb(),
+      plugins: [],
+    })

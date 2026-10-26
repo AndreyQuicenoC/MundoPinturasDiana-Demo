@@ -11,7 +11,7 @@ Demo aprobada del ecosistema **Mundo Pinturas Diana**: sitio público de catálo
 
 ## Demo en vivo
 
-Despliega con **Figma Make → Publish** o sigue [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+Despliega en **[Vercel](https://vercel.com)** o **[Netlify](https://netlify.com)** con PostgreSQL — guía paso a paso en [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). Figma Make sigue soportado si `FIGMA=1`.
 
 ## Accesos de demostración
 

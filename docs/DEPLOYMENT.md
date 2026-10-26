@@ -1,38 +1,72 @@
-# Despliegue — Demo Mundo Pinturas Diana
+# Despliegue — Vercel / Netlify (recomendado)
 
-## Figma Make (recomendado)
+Esta demo está preparada para **Vercel** o **Netlify** con **PostgreSQL** (Neon, Supabase, Vercel Postgres, etc.). Figma Make sigue siendo opcional si `FIGMA=1`.
 
-1. Abrir el proyecto en Figma Make.
-2. **Publish** ejecuta `.figma/make/deploy` (build Payload + Next standalone).
-3. Verificar rutas: `figma make verify-deploy`.
-4. Probar:
-   - Sitio público `/`, `/catalogo`, `/sedes`.
-   - `/login` con usuarios demo.
-   - Panel admin/gerente: inventario, analítica (procesar + PDF), POS.
+## 1. Base de datos
 
-Variables de entorno backend las inyecta la plataforma; no commitear `.env`.
+1. Crea un proyecto PostgreSQL (ej. [Neon](https://neon.tech) gratis).
+2. Copia la URL de conexión (`postgresql://…?sslmode=require`).
 
-## Datos de ejemplo
+## 2. Variables de entorno
 
-Con Payload conectado en el entorno Make:
+En el panel de Vercel o Netlify → **Environment variables**:
 
-```bash
-pnpm seed:demo-analytics
-```
+| Variable | Obligatorio | Descripción |
+|----------|-------------|-------------|
+| `DATABASE_URI` | Sí | URL PostgreSQL (alias aceptado: `DATABASE_URL`) |
+| `PAYLOAD_SECRET` | Sí | Secreto ≥ 16 caracteres (genera uno aleatorio) |
+| `PAYLOAD_DB_PUSH` | Sí al inicio | `true` para crear tablas; luego puedes poner `false` |
+| `SEED_DEMO` | Recomendado 1.er deploy | `true` crea usuarios demo y catálogo tras el build |
+| `NEXT_PUBLIC_SITE_URL` | Recomendado | URL final (`https://tu-app.netlify.app`) |
 
-Genera ventas, gastos y eventos de sitio distribuidos por mes (idempotente si ya hay ≥200 ventas).
+**No** definas `FIGMA=1` en Vercel/Netlify.
 
-## GitHub (espejo)
+### Usuarios demo (tras seed)
 
-Este repositorio puede desplegarse fuera de Make solo con backend Payload/Figma configurado; sin credenciales de plataforma el build local fallará en Payload — es esperado.
+| Rol | Correo | Contraseña |
+|-----|--------|------------|
+| Admin | admin@mundopinturasdiana.test | Admin#2026demo |
+| Gerente | gerente@mundopinturasdiana.test | Gerente#2026demo |
+| Empleado | empleado@mundopinturasdiana.test | Empleado#2026demo |
 
-## Smoke test post-deploy
+## 3. Netlify
 
-| # | Caso | Resultado esperado |
-|---|------|-------------------|
-| 1 | Login admin | Panel completo |
-| 2 | Analítica sin procesar | KPIs en 0 |
-| 3 | Procesar analítica | Gráficos con datos |
-| 4 | Descargar PDF | Archivo PDF válido |
-| 5 | Entrada inventario bulk | Kardex actualizado |
-| 6 | Catálogo público | Imágenes con dimensiones |
+1. **Add new site → Import from Git** → repo `MundoPinturasDiana-Demo`.
+2. Build command: **`npm run build:hosted`** (ya viene en `netlify.toml`).
+3. No configures “Publish directory” manualmente; usa el plugin **@netlify/plugin-nextjs**.
+4. Node **22** (`.nvmrc`).
+5. Deploy.
+
+Si ves *“Site not found”*: suele ser URL incorrecta, sitio sin deploy exitoso o publish directory mal puesto. Borra publish manual y vuelve a desplegar desde Git.
+
+## 4. Vercel
+
+1. Importa el repositorio en [vercel.com](https://vercel.com).
+2. Framework: **Next.js** (detectado).
+3. Build command: **`npm run build:hosted`** (`vercel.json`).
+4. Añade las mismas variables de entorno.
+5. Deploy.
+
+## 5. Después del primer deploy
+
+1. Entra a `/login` y prueba los usuarios demo.
+2. Opcional: más datos de analítica (con BD ya sembrada):
+
+   ```bash
+   DATABASE_URI=... PAYLOAD_SECRET=... npm run seed:demo-analytics
+   ```
+
+3. Pon `SEED_DEMO=false` en variables para builds siguientes (más rápidos).
+
+## 6. Figma Make (opcional)
+
+Si publicas desde Figma Make, la plataforma define `FIGMA=1` y usa `@payloadcms/figma` sin `DATABASE_URI`.
+
+## Smoke test
+
+| # | Caso | Esperado |
+|---|------|----------|
+| 1 | `/` | Home con catálogo |
+| 2 | `/login` | Panel según rol |
+| 3 | Analítica → Procesar | Datos (si hay ventas seed) |
+| 4 | PDF analítica | Descarga tras procesar |

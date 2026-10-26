@@ -1,0 +1,17 @@
+# Next.js App Router + Payload (servidor Node)
+[build]
+  command = "npm run build:hosted"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NPM_FLAGS = "--legacy-peer-deps"
+
+# Redirige www → apex si configuras dominio custom (opcional)
+# [[redirects]]
+#   from = "https://www.tudominio.com/*"
+#   to = "https://tudominio.com/:splat"
+#   status = 301
+#   force = true
