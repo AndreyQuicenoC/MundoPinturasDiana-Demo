@@ -415,4 +415,239 @@ Campos calculados a preservar: `reportableTotal`, `artisticTotal`, `balanceAfter
 
 ---
 
-*Versión: 1.1.0-demo mock — 2026-10-26*
+## 14. Catálogo de módulos del panel (21 claves)
+
+Cada módulo vive en `/panel/{admin|gerente|empleado}/{module}`. La ruta **`cuenta`** no está en `MODULES` pero existe como `/panel/{role}/cuenta`.
+
+| Clave | Etiqueta UI | Componente | Colección mock | Tipo de pantalla |
+|-------|-------------|------------|----------------|------------------|
+| `resumen` | Resumen | `panel/[role]/page.tsx` | varias | Dashboard KPIs |
+| `usuarios` | Usuarios | `usuarios.tsx` → CRUD | `users` | Tabla + formulario |
+| `permisos` | Permisos | `permisos.tsx` | `role-permissions`, `user-permissions` | Matrices |
+| `sedes` | Sedes | `sedes.tsx` | `branches` | CRUD |
+| `categorias` | Categorías | `categorias.tsx` | `product-categories` | CRUD |
+| `productos` | Productos | `productos.tsx` | `products` | CRUD + imagen |
+| `inventario` | Inventario | `inventario.tsx` | `inventory`, `inventory-movements` | Pestañas especializadas |
+| `clientes` | Clientes | `clientes.tsx` | `clients` | CRUD Habeas Data |
+| `proveedores` | Proveedores | `proveedores.tsx` | `suppliers` | CRUD |
+| `ventas` | Ventas | `ventas.tsx` + `SalesModule` | `sales` | Lista acordeón + filtros |
+| `pos` | Punto de venta | `pos.tsx` + `PosModule` | `sales` (create) | Carrito operativo |
+| `domicilios` | Domicilios | `domicilios.tsx` | `domicilios` | CRUD |
+| `facturacion` | Factura electrónica | `facturacion.tsx` | `electronic-invoices` | Cola FE |
+| `caja` | Caja | `caja.tsx` + `CashModule` | `cash-movements` | Form + lista jornada |
+| `conceptos` | Conceptos de caja | `conceptos.tsx` | `cash-concepts` | CRUD |
+| `cierre` | Cierre de caja | `cierre.tsx` | `cash-closings` | Histórico cierres |
+| `eventos` | Eventos | `eventos.tsx` | `events` | CRUD + pestañas vigentes |
+| `promociones` | Promociones | `promociones.tsx` | `promotions` | CRUD + pestañas vigentes |
+| `auditoria` | Auditoría | `auditoria.tsx` | `audit-logs` | Solo lectura + filtro acción |
+| `analitica` | Analítica | `analitica.tsx` | agregaciones | ETL + gráficos + PDF |
+
+---
+
+## 15. Rutas efectivas por tipo de usuario
+
+Leyenda: **T** = total (CRUD), **V** = ver, **P** = propio, **—** = sin acceso (redirect a resumen).
+
+| Módulo | Admin | Gerente | Empleado |
+|--------|-------|---------|----------|
+| resumen | T | T | P (solo sus KPIs del día) |
+| usuarios | T | — | — |
+| permisos | T | — | — |
+| sedes | T | — | — |
+| categorias | T | — | — |
+| productos | T | T | V |
+| inventario | T | T | V |
+| clientes | T | T | T |
+| proveedores | T | — | — |
+| ventas | T | T | P (solo ventas de hoy propias) |
+| pos | T | T | T |
+| domicilios | T | T | T |
+| facturacion | T | T | — |
+| caja | T | T | — |
+| conceptos | T | T | — |
+| cierre | T | T | — |
+| eventos | T | T | — |
+| promociones | T | T | — |
+| auditoria | T | — | — |
+| analitica | T | T | — |
+| cuenta | T | T | T |
+
+**Empleado en ventas:** filtros fijos `seller = yo` y `createdAt >= inicio del día (Bogotá)`; sin estadísticas mensuales ni anulación global salvo permiso `total`.
+
+**Admin bloqueado:** `LOCKED_FOR_ADMIN` impide revocar `resumen`, `permisos`, `usuarios` al rol admin.
+
+---
+
+## 16. Tablas y columnas — módulos especializados
+
+### 16.1 Ventas (`SalesModule`)
+
+**Tarjetas superiores (admin/gerente):** Ventas del mes (COP, sin anuladas ni artísticos), Devoluciones del mes.
+
+**Filtros GET:** `mes`, `branch`, `estado`, `desde`, `hasta`; paginación `page`.
+
+**Fila lista (acordeón):** `#número`, fecha/hora, vendedor, badge estado, total COP.
+
+**Detalle expandido:** tabla líneas (producto, color/tamaño, badge artístico, cant × precio, descuento %, total línea); pagos (método, monto, cuenta banco); domicilio; FE solicitada; devoluciones; motivo anulación.
+
+**Acciones:** Imprimir (`/imprimir/[id]`), devolución parcial, anular (modal motivo).
+
+### 16.2 Punto de venta (`PosModule`)
+
+- Buscador productos (SKU/nombre), carrito con cantidades, color/tamaño cuando aplica.
+- Cliente opcional (relación `clients`), domicilio embebido.
+- Pagos múltiples: efectivo, tarjeta, transferencia (cuenta `bank-accounts`).
+- Descuento por línea; tope descuento empleado 10 %.
+- Productos artísticos: líneas con `affectsSales: false` → `artisticTotal`.
+- Confirmación → crea documento `sales` + movimientos inventario en backend real; mock registra venta y puede descontar stock.
+
+### 16.3 Caja (`CashModule`)
+
+**Resumen jornada:** ventas efectivo/tarjeta/transferencia, adiciones, gastos, ahorros, transferencias, conteo ventas, cierre bloqueado, efectivo esperado.
+
+**Formulario movimiento:** sede, concepto (combobox precarga categoría/monto/detalle), categoría (gasto | transferencia | ahorro | adición base), valor, detalle.
+
+**Lista movimientos:** hora, concepto, categoría chip, usuario, monto con signo, editar/borrar si no `locked` y permiso.
+
+### 16.4 Cierre (`cierre.tsx`)
+
+Columnas típicas: día, sede, base inicial, entrega efectivo, esperado, contado físico, diferencia, estado (abierto/cerrado), responsable.
+
+### 16.5 Facturación (`facturacion-module`)
+
+Lista facturas electrónicas: venta origen, cliente/NIT, estado (pendiente, generada, error), CUFE/CUDE cuando exista, acciones generar/reintentar (demo).
+
+### 16.6 Inventario — pestañas URL `?tab=`
+
+| tab | Quién escribe | Función |
+|-----|---------------|---------|
+| `existencias` | todos con acceso | Grid saldos |
+| `historial` | todos | Kardex paginado |
+| `entrada` | total | Manual / barcode / bulk |
+| `ajuste` | total | Ajuste ± / merma |
+| `traslado` | total | Origen → destino sede |
+
+---
+
+## 17. Enumeración de funcionalidades (checklist producto)
+
+### Sitio público
+
+1. Home con productos destacados y categorías en carrusel.
+2. Catálogo con búsqueda, categoría, visibilidad solo productos activos/visibles.
+3. Ficha producto por slug (`generateStaticParams` desde mock).
+4. Selector colores/tamaños en ficha cuando el producto los define.
+5. Carrito local (React context), cantidades, total.
+6. Envío pedido vía WhatsApp con sede elegida y líneas formateadas.
+7. Sedes con mapa/enlace Google Maps y horarios.
+8. Promociones activas con clic WA contabilizado en `site-events`.
+9. Eventos públicos visibles en calendario/sitio.
+10. Sobre nosotros, mapa del sitio, robots/sitemap.
+11. Telemetría: visita página, clic carrito WA, clic promo WA.
+
+### Panel — transversal
+
+12. Login/logout con JWT en cookie httpOnly.
+13. Shell con navegación lateral filtrada por permisos efectivos.
+14. Redirección si `role` en URL ≠ rol del usuario.
+15. Mi cuenta: datos personales, contacto emergencia, cambio contraseña.
+16. Impresión comprobante venta (formato carta/ticket según query).
+17. Paginación 15 ítems, búsqueda `?q=` en CRUD genéricos.
+18. Auditoría append-only en acciones sensibles (cuando se registra en mock).
+
+### Panel — inventario y catálogo
+
+19. CRUD productos con imagen URL, colores, tamaños, stock mínimo.
+20. CRUD categorías con flag carrusel inicio.
+21. Entrada compra manual con proveedor y documento soporte.
+22. Escaneo barras acumulativo multi-SKU.
+23. Parseo carga rápida texto masivo.
+24. Ajustes positivos/negativos y merma con motivo.
+25. Traslados entre sedes (par entrada/salida).
+26. Alertas bajo stock en resumen.
+
+### Panel — ventas y dinero
+
+27. POS multi-pago y multi-línea.
+28. Separación contable productos artísticos.
+29. Listado ventas con anulación y devolución parcial.
+30. Estadísticas mes ventas/devoluciones (roles gerencia).
+31. Movimientos caja categorizados.
+32. Conceptos precargados para gastos frecuentes.
+33. Cierre con cuadre y diferencia.
+34. Domicilios desacoplados de venta (fee mensajero).
+35. Cola facturación electrónica demo.
+
+### Panel — gobierno
+
+36. CRUD usuarios app (solo admin).
+37. Matriz permisos por rol y overrides por usuario.
+38. CRUD sedes (impacto sitio y operación).
+39. CRUD proveedores.
+40. Log auditoría filtrable por acción.
+
+### Analítica
+
+41. Filtros sede + rango fechas + atajos mes.
+42. Simulación ETL: sin `procesar=1` todo en cero.
+43. KPIs: ventas reportables, ticket, transacciones, gastos, margen, ratio, etc.
+44. Tabla mensual comparativa.
+45. Gráficos: tendencia, categorías, top productos, sitio, inventario, devoluciones, línea artística.
+46. Export PDF informe ejecutivo.
+
+---
+
+## 18. Campos de formulario CRUD (referencia `panel-config.ts`)
+
+Además de las columnas ya listadas en §6.1, los formularios incluyen:
+
+- **Usuarios:** documento, teléfono, contraseña solo en alta.
+- **Sedes:** ciudad, teléfono, horario, mapsUrl, mapQuery, orden.
+- **Productos:** marca, tipo venta, origen, línea, unidad, IVA %, descripción, featured.
+- **Clientes:** dirección, email, notas, activo.
+- **Proveedores:** email, textarea productos que suministra.
+- **Domicilios:** notas, estados logísticos.
+- **Eventos:** impacto, áreas afectadas, sede opcional.
+- **Categorías:** homeOrder.
+- **Conceptos:** description sugerida en movimiento caja.
+- **Promociones:** kind promoción/sorteo, hashtags obligatorios.
+
+Módulos **sin** entrada en `RESOURCES` (UI custom): inventario, ventas, pos, caja, cierre, facturacion, permisos, analitica, resumen, cuenta.
+
+---
+
+## 19. Fixtures demo (`fixtures.ts`) — volumen orientativo
+
+| Dataset | Propósito demo |
+|---------|----------------|
+| 3 usuarios | Login por rol |
+| 2–3 sedes | Filtros sede, mapas |
+| Categorías + tipos | Catálogo y analítica por categoría |
+| ~15+ productos | POS, barras, catálogo SSG |
+| Clientes/proveedores | Relaciones formularios |
+| Saldos inventario + movimientos seed | Kardex inicial |
+| Ventas ~12 meses | Analítica tras procesar |
+| Movimientos caja, entregas | KPIs financieros |
+| Promos/eventos activos | Home público |
+| site-events | Gráfico marketing |
+| Notificaciones | Campana resumen |
+| Global site-settings | WhatsApp footer |
+
+Al reiniciar cold start en Netlify, el store vuelve a este snapshot; las mutaciones de la sesión anterior no se garantizan.
+
+---
+
+## 20. Glosario
+
+| Término | Significado en la demo |
+|---------|------------------------|
+| Reportable | Venta que entra en KPIs excluyendo líneas artísticas |
+| Artístico | Línea que no suma a ventas reportables pero sí a `artisticTotal` |
+| Procesar analítica | Flag ETL client-side/server read que ejecuta `buildReport` |
+| Mock-payload | Sustituto de `getPayload()` con API reducida |
+| Modo propio | Filtro automático por `seller` o usuario dueño |
+| Kardex | Lista cronológica `inventory-movements` |
+
+---
+
+*Versión: 1.2.0-demo mock — 2026-10-26*
