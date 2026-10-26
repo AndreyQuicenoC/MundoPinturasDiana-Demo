@@ -42,6 +42,12 @@ function pop(doc: any, depth: number) {
   return out
 }
 
+const dayKey = (v: unknown) => {
+  const s = String(v ?? '')
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
+  return s
+}
+
 function matchWhere(doc: any, where: any): boolean {
   if (!where) return true
   if (where.and) return where.and.every((w: unknown) => matchWhere(doc, w))
@@ -54,12 +60,20 @@ function matchWhere(doc: any, where: any): boolean {
     if (c.not_equals !== undefined && String(val) === String(c.not_equals)) return false
     if (Array.isArray(c.in) && !c.in.map(String).includes(String(val))) return false
     if (c.greater_than_equal !== undefined) {
-      const a = String(val ?? '')
-      const b = String(c.greater_than_equal)
-      if (a < b.slice(0, Math.min(a.length, b.length))) return false
+      const a = key === 'date' || key === 'day' ? dayKey(val) : String(val ?? '')
+      const b = dayKey(c.greater_than_equal)
+      if (a < b) return false
     }
-    if (c.less_than !== undefined && !(String(val ?? '') < String(c.less_than))) return false
-    if (c.less_than_equal !== undefined && !(String(val ?? '') <= String(c.less_than_equal))) return false
+    if (c.less_than !== undefined) {
+      const a = key === 'date' || key === 'day' ? dayKey(val) : String(val ?? '')
+      const b = dayKey(c.less_than)
+      if (!(a < b)) return false
+    }
+    if (c.less_than_equal !== undefined) {
+      const a = key === 'date' || key === 'day' ? dayKey(val) : String(val ?? '')
+      const b = dayKey(c.less_than_equal)
+      if (a > b) return false
+    }
     if (c.like !== undefined) {
       const needle = String(c.like).replace(/%/g, '').toLowerCase()
       if (!String(val ?? '').toLowerCase().includes(needle)) return false
@@ -91,13 +105,14 @@ function sortDocs(docs: any[], sort?: string | string[]) {
 export function createMockPayload() {
   const api = {
     async find(opts: { collection: string; where?: unknown; limit?: number; page?: number; sort?: string | string[]; depth?: number; pagination?: boolean; overrideAccess?: boolean; select?: unknown }) {
-      const { collection, where, limit = 10, page = 1, sort, depth = 0 } = opts
+      const { collection, where, page = 1, sort, depth = 0, pagination = true } = opts
+      const limit = pagination === false ? 1_000_000 : (opts.limit ?? 500)
       let docs = [...(getDemoStore().collections[collection] ?? [])]
       if (where) docs = docs.filter((d) => matchWhere(d, where))
       docs = sortDocs(docs, sort)
       const totalDocs = docs.length
-      const start = (Math.max(1, page) - 1) * limit
-      const pageDocs = docs.slice(start, start + limit)
+      const start = pagination === false ? 0 : (Math.max(1, page) - 1) * limit
+      const pageDocs = pagination === false ? docs : docs.slice(start, start + limit)
       return {
         docs: pageDocs.map((d) => pop(d, depth)),
         totalDocs,

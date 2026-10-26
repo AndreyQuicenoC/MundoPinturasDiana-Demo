@@ -1,5 +1,5 @@
 'use client'
-import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { AlertTriangle, Barcode, ClipboardList, FileText, HelpCircle, Keyboard, Search, Trash2 } from 'lucide-react'
 import { registerAdjustment, registerBulkEntries, registerEntry, transferStock } from '@/lib/actions-inventory'
@@ -152,7 +152,7 @@ function EntryHub({ products, branches, suppliers }: { products: ProductOpt[]; b
   const [mode, setMode] = useState<EntryMode>('manual')
   const tabs: { id: EntryMode; label: string; icon: ReactNode }[] = [
     { id: 'manual', label: 'Manual', icon: <Keyboard size={15} aria-hidden /> },
-    { id: 'barcode', label: 'Código de barras', icon: <Barcode size={15} aria-hidden /> },
+    { id: 'barcode', label: 'Detector códigos', icon: <Barcode size={15} aria-hidden /> },
     { id: 'bulk', label: 'Carga rápida', icon: <ClipboardList size={15} aria-hidden /> },
   ]
   return (
@@ -224,14 +224,19 @@ function BarcodeEntry({ products, branches, suppliers }: { products: ProductOpt[
   const [code, setCode] = useState('')
   const [unitCost, setUnitCost] = useState('')
   const [rows, setRows] = useState<ScanRow[]>([])
+  const [lastScan, setLastScan] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const scanBuf = useRef('')
+  const scanLastKey = useRef(0)
   const { run, pending } = useDo()
   const needSupplier = useMemo(() => rows.some((r) => products.find((p) => p.id === r.productId)?.origin !== 'fabricado'), [rows, products])
 
-  const addScan = () => {
-    const prod = resolveProduct(products, code)
+  const addScan = useCallback((rawCode?: string) => {
+    const scanned = (rawCode ?? code).trim()
+    if (!scanned) return
+    const prod = resolveProduct(products, scanned)
     if (!prod) { toast('Código no encontrado. Usa SKU o código de barras registrado.', 'error'); return }
-    const cost = unitCost.trim() ? Number(unitCost) : undefined
+    setLastScan(`${prod.label} (+1)`)
     setRows((prev) => {
       const i = prev.findIndex((x) => x.productId === prod.id)
       if (i >= 0) {
@@ -243,7 +248,33 @@ function BarcodeEntry({ products, branches, suppliers }: { products: ProductOpt[
     })
     setCode('')
     inputRef.current?.focus()
-  }
+  }, [code, products, unitCost])
+
+  /** Lector USB (modo teclado): captura teclas rápidas + Enter aunque el foco no esté en el input. */
+  useEffect(() => {
+    const gapMs = 45
+    const onKeyDown = (ev: KeyboardEvent) => {
+      const tag = (ev.target as HTMLElement)?.tagName
+      if (tag === 'TEXTAREA' || tag === 'SELECT') return
+      const now = Date.now()
+      if (ev.key === 'Enter') {
+        const token = scanBuf.current.trim() || (tag !== 'INPUT' ? '' : (inputRef.current?.value ?? '').trim())
+        scanBuf.current = ''
+        if (token.length >= 3) {
+          ev.preventDefault()
+          addScan(token)
+        }
+        return
+      }
+      if (ev.key.length === 1 && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+        if (now - scanLastKey.current > gapMs) scanBuf.current = ''
+        scanBuf.current += ev.key
+        scanLastKey.current = now
+      }
+    }
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [addScan])
 
   const commit = () => {
     if (!rows.length) return
@@ -257,8 +288,9 @@ function BarcodeEntry({ products, branches, suppliers }: { products: ProductOpt[
   }
 
   return (
-    <Panel title="Entrada por código de barras">
-      <p className="mb-4 text-sm text-ink/60">Conecta el lector USB (modo teclado), elige sede y proveedor, y escanea. Cada lectura suma una unidad al producto.</p>
+    <Panel title="Detector de códigos (lector USB / pistola)">
+      <p className="mb-2 text-sm text-ink/60">Conecta el lector en modo teclado: cada lectura se registra sola al detectar el código (Enter del lector). También puedes escribir SKU o EAN y pulsar Enter.</p>
+      {lastScan && <p className="mb-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800" role="status">Última detección: {lastScan}</p>}
       <div className="mb-4 grid gap-4 sm:grid-cols-2">
         <SharedMeta branch={branch} setBranch={setBranch} supplier={supplier} setSupplier={setSupplier} reference={reference} setReference={setReference} notes={notes} setNotes={setNotes} branches={branches} suppliers={suppliers} needSupplier={needSupplier} />
       </div>
@@ -268,7 +300,17 @@ function BarcodeEntry({ products, branches, suppliers }: { products: ProductOpt[
       >
         <label className="flex-1 text-sm font-semibold">
           Escanear o escribir código
-          <input ref={inputRef} autoFocus value={code} onChange={(e) => setCode(e.target.value)} placeholder="SKU / código de barras" className={`${input} mt-1 font-mono`} title="El lector USB escribe aquí y envía Enter" />
+          <input
+            ref={inputRef}
+            autoFocus
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addScan() } }}
+            placeholder="Apunta el lector aquí — detección automática"
+            className={`${input} mt-1 font-mono`}
+            title="El detector USB escribe aquí y confirma con Enter"
+            aria-label="Campo de detección de código de barras"
+          />
         </label>
         <label className="w-full text-sm font-semibold sm:w-36">
           Costo (opcional)

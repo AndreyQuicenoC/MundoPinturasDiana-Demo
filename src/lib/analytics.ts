@@ -42,7 +42,7 @@ export type Report = {
 
 const idOf = (v: any) => (v && typeof v === 'object' ? v.id : v)
 const bogota = (ts: string) => new Date(new Date(ts).getTime() - 5 * 3600_000).toISOString()
-const dayOf = (ts: string) => bogota(ts).slice(0, 10)
+const dayOf = (ts: string) => (/^\d{4}-\d{2}-\d{2}$/.test(String(ts)) ? String(ts) : bogota(ts).slice(0, 10))
 const sortDesc = (m: Map<string, number>) => [...m].map(([k, v]) => ({ k, v })).sort((a, b) => b.v - a.v)
 
 export function makeBuckets(f: Filters) {
