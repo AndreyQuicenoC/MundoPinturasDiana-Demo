@@ -10,7 +10,8 @@ import { ProductCarousel } from '@/components/site/product-carousel'
 import { PromotionsSection } from '@/components/site/promotions-section'
 import { EventsSection } from '@/components/site/events-section'
 import { Brush, Building2, Droplets, Layers, Paintbrush, Sun } from 'lucide-react'
-
+/** Demo/publicación: catálogo mock y eventos con fechas relativas a hoy. */
+export const revalidate = 0
 
 export default async function Home() {
   const [products, settings, branches, imgs, bestIds, promotions, events] = await Promise.all([getProducts(), getSiteSettings(), getBranches(), getSiteImages(), getBestSellerIds(), getPromotions(), getPublicEvents()])
@@ -18,18 +19,19 @@ export default async function Home() {
   const flagship = products.filter((p) => p.featured).slice(0, 8)
   const words = ['Vinilos DECO', 'Interiores', 'Exteriores', 'Esmaltes', 'Lacas', 'Pintura de tráfico', 'Murales', 'Asesoría de color']
 
-  const norm = (s?: string | null) => (s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  const norm = (s?: string | null) => (s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
   const slugOf = (re: RegExp, fallback: string) => products.find((p) => p.categorySlug && re.test(norm(p.category)))?.categorySlug ?? fallback
   const byRank = new Map(bestIds.map((id, i) => [id, i]))
   const bestSellers = bestIds.length
     ? products.filter((p) => byRank.has(String(p.id))).sort((a, b) => byRank.get(String(a.id))! - byRank.get(String(b.id))!).slice(0, 10)
     : [...products.filter((p) => p.featured), ...products.filter((p) => !p.featured)].slice(0, 10)
   const pick = (f: (p: PublicProduct) => boolean) => products.filter(f).slice(0, 10)
+  const inCat = (p: PublicProduct, re: RegExp) => re.test(norm(`${p.category} ${p.categorySlug} ${p.name} ${p.productType}`))
   const carousels = [
     { id: 'mas-vendidos', kicker: 'Lo que más se lleva Cali', title: 'Los más vendidos', href: '/catalogo', products: bestSellers, color: '#E11D74' },
-    { id: 'artisticos', kicker: 'Para crear', title: 'Artísticos', href: '/catalogo?tipo=artistico', products: pick((p) => p.artistic || /artistic/.test(norm(p.category))), color: '#00ACC1' },
-    { id: 'ferreteria', kicker: 'Todo para el trabajo', title: 'Ferretería', href: `/catalogo?categoria=${slugOf(/ferreter/, 'ferreteria')}`, products: pick((p) => /ferreter/.test(norm(p.category))), color: '#FFC93C' },
-    { id: 'esmaltes', kicker: 'Protección y acabado', title: 'Esmaltes, lacas y anticorrosivos', href: `/catalogo?categoria=${slugOf(/esmalte|laca|anticorros/, 'esmaltes-lacas-y-anticorrosivos')}`, products: pick((p) => /esmalte|laca|anticorros/.test(norm(`${p.category} ${p.productType}`))), color: '#4A154B' },
+    { id: 'artisticos', kicker: 'Para crear', title: 'Artísticos', href: '/catalogo?tipo=artistico', products: pick((p) => p.artistic || /artistic|mural|kit/.test(norm(`${p.category} ${p.name}`))), color: '#00ACC1' },
+    { id: 'ferreteria', kicker: 'Todo para el trabajo', title: 'Ferretería', href: `/catalogo?categoria=${slugOf(/herramient|ferreter/, 'herramientas')}`, products: pick((p) => inCat(p, /herramient|ferreter|brocha|rodillo|cinta|masilla|thinner|lixa|imprimante/)), color: '#FFC93C' },
+    { id: 'esmaltes', kicker: 'Protección y acabado', title: 'Esmaltes, lacas y anticorrosivos', href: `/catalogo?categoria=${slugOf(/esmalte|laca|barniz/, 'esmaltes')}`, products: pick((p) => inCat(p, /esmalte|laca|barniz|anticorros|automotriz/)), color: '#4A154B' },
   ]
 
   return (

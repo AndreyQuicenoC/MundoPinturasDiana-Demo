@@ -10,6 +10,12 @@ export function resetSeq(n = 1000) {
 
 export const bogotaDay = (d = new Date()) => new Date(d.getTime() - 5 * 3600_000).toISOString().slice(0, 10)
 
+const addDays = (isoDay: string, days: number) => {
+  const d = new Date(`${isoDay}T12:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
+}
+
 const slug = (s: string) =>
   s
     .toLowerCase()
@@ -454,7 +460,7 @@ export function buildDemoData() {
       hashtags: '#PintorPro #Diana',
       imageUrl: IMG.mural,
       startDate: `${yearNow}-03-01`,
-      endDate: `${yearNow}-09-30`,
+      endDate: `${yearNow}-12-31`,
       active: true,
     },
   ]
@@ -496,6 +502,30 @@ export function buildDemoData() {
       description: 'Descuentos en esmaltes y vinilos.',
       imageUrl: IMG.paint2,
     },
+    {
+      id: 'ev-4',
+      title: 'Taller de aplicación de vinilos',
+      type: 'capacitacion',
+      startDate: today,
+      endDate: addDays(today, 14),
+      importance: 'clave',
+      visible: true,
+      active: true,
+      description: 'Práctica en mostrador con productos DECO.',
+      imageUrl: IMG.paint1,
+    },
+    {
+      id: 'ev-5',
+      title: 'Jornada de color en sede Sur',
+      type: 'social',
+      startDate: addDays(today, 7),
+      endDate: addDays(today, 7),
+      importance: 'normal',
+      visible: true,
+      active: true,
+      description: 'Demostraciones y asesoría gratuita.',
+      imageUrl: IMG.mural,
+    },
   ]
 
   const domicilios = [
@@ -530,13 +560,13 @@ export function buildDemoData() {
   ]
 
   const notifications = [
-    { id: nextId(), title: 'Stock bajo: Vinilo azul océano', body: 'Sede Cali Centro por debajo del mínimo.', read: false, createdAt: `${today}T07:00:00.000Z`, user: 'u-admin' },
-    { id: nextId(), title: 'Domicilio en ruta', body: 'María Gómez — Calle 5 # 12-34', read: false, createdAt: `${today}T09:05:00.000Z`, user: 'u-ger' },
-    { id: nextId(), title: 'FE pendiente', body: '3 facturas electrónicas por generar.', read: false, createdAt: `${today}T10:00:00.000Z`, user: 'u-admin' },
-    { id: nextId(), title: 'Cierre de ayer con diferencia', body: 'Revisar conteo Sede Sur.', read: true, createdAt: `${today}T06:00:00.000Z`, user: 'u-ger' },
-    { id: nextId(), title: 'Promoción activa', body: 'Semana del color — compartir en WhatsApp.', read: false, createdAt: `${today}T08:00:00.000Z` },
-    { id: nextId(), title: 'Producto agotado', body: 'Cinta enmascarar 48 mm en Sede Sur.', read: false, createdAt: `${today}T11:00:00.000Z`, user: 'u-emp' },
-    { id: nextId(), title: 'Capacitación próxima', body: 'Recordatorio mezclas especiales.', read: true, createdAt: `${today}T07:30:00.000Z` },
+    { id: nextId(), title: 'Stock bajo: Vinilo azul océano', message: 'Sede Cali Centro por debajo del mínimo.', type: 'advertencia', audience: 'todos', status: 'no_leida', createdAt: `${today}T07:00:00.000Z` },
+    { id: nextId(), title: 'Domicilio en ruta', message: 'María Gómez — Calle 5 # 12-34', type: 'info', audience: 'gerente', status: 'no_leida', createdAt: `${today}T09:05:00.000Z` },
+    { id: nextId(), title: 'FE pendiente', message: '3 facturas electrónicas por generar.', type: 'advertencia', audience: 'admin', status: 'no_leida', createdAt: `${today}T10:00:00.000Z` },
+    { id: nextId(), title: 'Cierre de ayer con diferencia', message: 'Revisar conteo Sede Sur.', type: 'error', audience: 'gerente', status: 'leida', createdAt: `${today}T06:00:00.000Z` },
+    { id: nextId(), title: 'Promoción activa', message: 'Semana del color — compartir en WhatsApp.', type: 'exito', audience: 'todos', status: 'no_leida', createdAt: `${today}T08:00:00.000Z` },
+    { id: nextId(), title: 'Producto agotado', message: 'Cinta enmascarar 48 mm en Sede Sur.', type: 'advertencia', audience: 'todos', status: 'no_leida', createdAt: `${today}T11:00:00.000Z` },
+    { id: nextId(), title: 'Taller vinilos esta semana', message: 'Evento público en sede — refuerza inventario de muestras.', type: 'info', audience: 'todos', status: 'leida', createdAt: `${today}T07:30:00.000Z` },
   ]
 
   const auditLogs = [

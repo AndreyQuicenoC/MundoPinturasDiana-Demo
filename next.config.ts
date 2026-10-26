@@ -36,6 +36,7 @@ const nextConfig: NextConfig = {
   images: {
     loader: 'custom',
     loaderFile: './figma-image-loader.ts',
+    remotePatterns: [{ protocol: 'https', hostname: 'images.unsplash.com', pathname: '/**' }],
   },
   // Don't block publishing or preview deploys on errors if the emitted JS is valid
   typescript: {

@@ -1,7 +1,9 @@
 'use server'
-import { isRedirectError } from 'next/dist/client/components/redirect-error.js'
 import { redirect } from 'next/navigation'
 import { appAuth } from '@/lib/app-auth'
+
+const isRedirectError = (e: unknown): boolean =>
+  typeof e === 'object' && e !== null && 'digest' in e && String((e as { digest: string }).digest).startsWith('NEXT_REDIRECT')
 
 export type LoginState = { error?: string }
 

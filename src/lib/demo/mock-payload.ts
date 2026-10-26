@@ -59,10 +59,20 @@ function matchWhere(doc: any, where: any): boolean {
     if (c.equals !== undefined && String(val) !== String(c.equals)) return false
     if (c.not_equals !== undefined && String(val) === String(c.not_equals)) return false
     if (Array.isArray(c.in) && !c.in.map(String).includes(String(val))) return false
+    if (c.greater_than !== undefined) {
+      const a = Number(val)
+      const b = Number(c.greater_than)
+      if (!Number.isNaN(a) && !Number.isNaN(b) && !(a > b)) return false
+    }
     if (c.greater_than_equal !== undefined) {
       const a = key === 'date' || key === 'day' ? dayKey(val) : String(val ?? '')
       const b = dayKey(c.greater_than_equal)
       if (a < b) return false
+      if (key !== 'date' && key !== 'day') {
+        const an = Number(val)
+        const bn = Number(c.greater_than_equal)
+        if (!Number.isNaN(an) && !Number.isNaN(bn) && an < bn) return false
+      }
     }
     if (c.less_than !== undefined) {
       const a = key === 'date' || key === 'day' ? dayKey(val) : String(val ?? '')

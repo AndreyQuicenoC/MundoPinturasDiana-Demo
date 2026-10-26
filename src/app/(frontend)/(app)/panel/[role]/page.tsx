@@ -6,7 +6,10 @@ import { effectiveForUser } from '@/lib/permissions'
 import { findAll } from '@/lib/panel-data'
 import { bogotaDay, dayRange } from '@/lib/cash'
 import { formatCOPClient } from '@/lib/format'
-import { Panel, Empty, dt } from '@/components/panel/kit'
+import { Panel, Empty } from '@/components/panel/kit'
+
+const formatWhen = (v?: string) =>
+  v ? new Date(v).toLocaleString('es-CO', { timeZone: 'America/Bogota', dateStyle: 'medium', timeStyle: 'short' }) : '—'
 import { NotifList } from '@/components/panel/notif-list'
 import { Blob } from '@/components/ui/splash'
 
@@ -70,7 +73,7 @@ export default async function Resumen({ params }: { params: Promise<{ role: stri
           </Panel>
         )}
         <Panel title="Notificaciones" action={<Bell size={18} className="text-plum/60" />}>
-          <NotifList items={notifs.map((n) => ({ id: n.id, title: n.title, message: n.message, type: n.type, status: n.status, when: dt(n.createdAt) }))} />
+          <NotifList items={notifs.map((n) => ({ id: n.id, title: n.title, message: n.message ?? n.body ?? '', type: n.type ?? 'info', status: n.status ?? 'no_leida', when: formatWhen(String(n.createdAt ?? '')) }))} />
         </Panel>
       </div>
     </div>
