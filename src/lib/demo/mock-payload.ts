@@ -1,5 +1,5 @@
 import 'server-only'
-import { SignJWT, jwtVerify } from 'jose'
+import { demoUserPublic, findDemoUser, signDemoSessionToken, verifyDemoSessionToken } from './demo-auth'
 import { getDemoStore } from './fixtures'
 
 const MOVEMENT_SIGN: Record<string, 1 | -1> = {
@@ -23,8 +23,6 @@ function applyInventoryMovement(data: Record<string, unknown>) {
   data.balanceAfter = after
   data.actor = data.actor ?? 'Demo'
 }
-
-const secret = () => new TextEncoder().encode(process.env.PAYLOAD_SECRET || 'demo-mock-secret-minimum-32-characters!!')
 
 function rel(collection: string, val: unknown, depth: number) {
   if (!val || depth <= 0) return val
@@ -144,30 +142,18 @@ export function createMockPayload() {
     },
 
     async login(opts: { collection: string; data: { email: string; password: string } }) {
-      const users = getDemoStore().collections[opts.collection] ?? []
-      const u = users.find((x) => x.email === opts.data.email && x.password === opts.data.password)
+      if (opts.collection !== 'users') throw new Error('Credenciales inválidas')
+      const u = findDemoUser(opts.data.email, opts.data.password)
       if (!u) throw new Error('Credenciales inválidas')
-      const token = await new SignJWT({ sub: String(u.id), collection: opts.collection })
-        .setProtectedHeader({ alg: 'HS256' })
-        .setExpirationTime('10h')
-        .sign(secret())
-      const { password: _, ...safe } = u
-      return { token, user: { ...safe, collection: opts.collection } }
+      const token = await signDemoSessionToken(u)
+      return { token, user: demoUserPublic(u) }
     },
 
     async auth(opts: { headers: Headers }) {
       const raw = opts.headers.get('Authorization')?.replace(/^Bearer\s+/i, '')
       if (!raw) return { user: null }
-      try {
-        const { payload } = await jwtVerify(raw, secret())
-        const uid = payload.sub as string
-        const user = getDemoStore().collections.users?.find((u) => u.id === uid)
-        if (!user) return { user: null }
-        const { password: _, ...safe } = user
-        return { user: { ...safe, collection: 'users' } }
-      } catch {
-        return { user: null }
-      }
+      const user = await verifyDemoSessionToken(raw)
+      return { user }
     },
 
     async findGlobal(opts: { slug: string }) {

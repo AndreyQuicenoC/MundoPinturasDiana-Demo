@@ -1,4 +1,5 @@
 'use server'
+import { isRedirectError } from 'next/dist/client/components/redirect-error.js'
 import { redirect } from 'next/navigation'
 import { appAuth } from '@/lib/app-auth'
 
@@ -21,7 +22,8 @@ export async function loginAction(_: LoginState, fd: FormData): Promise<LoginSta
       return { error: 'Correo o contraseña incorrectos.' }
     }
     role = user.role
-  } catch {
+  } catch (e) {
+    if (isRedirectError(e)) throw e
     return { error: 'Correo o contraseña incorrectos.' }
   }
   redirect(safeNext(fd.get('next'), role))

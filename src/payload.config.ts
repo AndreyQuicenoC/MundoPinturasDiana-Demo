@@ -2,8 +2,6 @@ import { buildFigmaConfig } from '@payloadcms/figma'
 import { mcpPlugin } from '@payloadcms/plugin-mcp'
 import { isFigmaMake, sharedPayloadConfig } from './payload.build'
 
-const demoMock = () => process.env.DEMO_MOCK === '1' || process.env.DEMO_MOCK === 'true'
-
 /** En demo mock el runtime usa `mock-payload`; este stub evita adapters de BD en el bundle. */
 const demoConfigStub = {
   ...sharedPayloadConfig,
@@ -16,6 +14,4 @@ export default isFigmaMake()
       plugins: [mcpPlugin({})],
       figma: {},
     })
-  : (demoMock() || !process.env.FIGMA
-    ? demoConfigStub
-    : demoConfigStub)
+  : demoConfigStub

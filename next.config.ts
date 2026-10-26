@@ -83,6 +83,11 @@ const nextConfig: NextConfig = {
   },
 }
 
-const demoMock = process.env.DEMO_MOCK === '1' || process.env.DEMO_MOCK === 'true'
+const demoMock = (() => {
+  if (process.env.FIGMA === '1') return false
+  if (process.env.DEMO_MOCK === '0' || process.env.DEMO_MOCK === 'false') return false
+  if (process.env.DEMO_MOCK === '1' || process.env.DEMO_MOCK === 'true') return true
+  return !(process.env.DATABASE_URI || process.env.DATABASE_URL)
+})()
 
 export default demoMock ? nextConfig : withPayload(nextConfig, { devBundleServerPackages: false })

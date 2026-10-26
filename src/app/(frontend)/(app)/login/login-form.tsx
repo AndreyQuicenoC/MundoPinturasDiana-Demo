@@ -47,6 +47,14 @@ export function LoginForm({ next }: { next?: string }) {
         {pending && <Loader2 size={18} className="animate-spin" />} Ingresar al sistema
       </button>
       <button type="button" onClick={() => setRecovering(true)} title="Recuperar contraseña" aria-label="¿Olvidaste tu contraseña?" className="mt-5 text-sm font-semibold text-plum underline-offset-4 hover:text-brand hover:underline">¿Olvidaste tu contraseña?</button>
+      <details className="mt-6 rounded-xl border-2 border-plum/10 bg-plum-soft/40 p-4 text-xs text-ink/70">
+        <summary className="cursor-pointer font-bold text-plum">Credenciales demo</summary>
+        <ul className="mt-3 space-y-2 font-mono text-[11px] leading-relaxed">
+          <li><strong>Admin:</strong> admin@mundopinturasdiana.test · Admin#2026demo</li>
+          <li><strong>Gerente:</strong> gerente@mundopinturasdiana.test · Gerente#2026demo</li>
+          <li><strong>Empleado:</strong> empleado@mundopinturasdiana.test · Empleado#2026demo</li>
+        </ul>
+      </details>
       <p className="mt-4 text-xs leading-relaxed text-ink/50">
         Tras 5 intentos fallidos la cuenta se bloquea 15 minutos. El acceso queda registrado en auditoría.
       </p>
