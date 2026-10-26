@@ -1,5 +1,7 @@
 [build]
   command = "npm run build:demo"
+  # Netlify elige pnpm si existe pnpm-lock.yaml; usamos npm + package-lock.json únicamente.
+  install = "npm ci --legacy-peer-deps --no-audit --no-fund"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
@@ -8,4 +10,5 @@
   NODE_VERSION = "22"
   DEMO_MOCK = "true"
   NPM_CONFIG_LEGACY_PEER_DEPS = "true"
+  NPM_FLAGS = "--legacy-peer-deps"
   NODE_OPTIONS = "--no-deprecation"

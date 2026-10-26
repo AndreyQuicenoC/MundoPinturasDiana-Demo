@@ -1,4 +1,6 @@
 node_modules/
+# Netlify usa npm (package-lock.json). Un pnpm-lock desactualizado rompe el install en CI.
+pnpm-lock.yaml
 .next/
 out/
 dist/

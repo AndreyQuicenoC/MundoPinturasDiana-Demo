@@ -1,4 +1,7 @@
-# Keep host-native binaries for builds and Linux ARM64 binaries for Lambda.
+# Proyecto raíz (requerido por pnpm). supportedArchitectures lo usa Figma Make.
+packages:
+  - '.'
+
 supportedArchitectures:
   os:
     - current

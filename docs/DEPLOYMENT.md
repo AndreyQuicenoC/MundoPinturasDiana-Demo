@@ -39,7 +39,9 @@ En el panel de Vercel o Netlify → **Environment variables**:
 - `NPM_CONFIG_LEGACY_PEER_DEPS=true` (peer deps de Payload beta)
 - `.npmrc` con `legacy-peer-deps=true` y `engine-strict=false`
 
-Si el build falla en **Install dependencies**, revisa el log completo; con la versión mock (sin `@payloadcms/db-postgres`) `npm ci` debe completar. Si hay cola de deploys del equipo, espera a que terminen los builds anteriores.
+**Importante:** el despliegue en Netlify usa **`npm ci`** y **`package-lock.json`**. No subas `pnpm-lock.yaml` al repo de hosting (Netlify lo detecta y ejecuta `pnpm install --frozen-lockfile`, que falla si el lock no coincide con `package.json`). Figma Make puede regenerar `pnpm-lock.yaml` localmente con `pnpm install`.
+
+Si el build falla en **Install dependencies**, revisa que no exista `pnpm-lock.yaml` en Git y que `netlify.toml` tenga `install = "npm ci --legacy-peer-deps"`.
 
 ## 3. Vercel
 
